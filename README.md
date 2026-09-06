@@ -3,7 +3,7 @@
 > **Watch less. Understand more.**
 
 [![GitHub](https://img.shields.io/badge/GitHub-IsHa2507%2FMarketWatchlist-blue?logo=github)](https://github.com/IsHa2507/MarketWatchlist)
-[![Live Demo](https://img.shields.io/badge/Demo-Live-success?logo=vercel)](https://github.com/IsHa2507/MarketWatchlist)
+[![Live Demo](https://img.shields.io/badge/Demo-Live-success?logo=vercel)]([https://github.com/IsHa2507/MarketWatchlist](https://market-watchlist-fmvik7u7u-ishas-projects-e3c6426b.vercel.app/dashboard))
 
 MarketPulse AI is a smart market watchlist that tells you **what changed since you last checked — and whether it matters.**
 
@@ -529,7 +529,7 @@ MIT License - see LICENSE file for details.
 ## Links
 
 - **GitHub Repository**: https://github.com/IsHa2507/MarketWatchlist
-- **Live Demo**: Coming soon on Vercel
+- **Live Demo**: https://market-watchlist-fmvik7u7u-ishas-projects-e3c6426b.vercel.app/dashboard
 - **Issues & Feature Requests**: https://github.com/IsHa2507/MarketWatchlist/issues
 
 ---
