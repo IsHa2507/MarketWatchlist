@@ -5,7 +5,7 @@ from typing import List, Optional
 from app.db.database import get_db
 from app.models.user import User
 from app.models.market import MarketEvent
-from app.services.market_data import MarketDataService, COMPANY_METADATA
+from app.services.market_data import MarketDataService
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
@@ -50,7 +50,8 @@ def get_stock_history(
         "ticker": ticker.upper(),
         "days": days,
         "data_points": history,
-        "data_confidence": "HIGH",
+        "data_confidence": "MEDIUM",
+        "note": "Market data may be delayed depending on source.",
     }
 
 

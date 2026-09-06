@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, ArrowRight } from 'lucide-react'
 import type { AttentionScore } from '../../types'
+import { FreshnessBadge } from '../ui/FreshnessBadge'
 import { formatPercent } from '../../utils/format'
 import { clsx } from 'clsx'
 
@@ -43,6 +44,11 @@ export function NormalSection({ items }: { items: AttentionScore[] }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
+                    <FreshnessBadge
+                      freshness={item.freshness ?? item.stock_data?.freshness}
+                      demoMode={item.demo_mode ?? item.stock_data?.demo_mode}
+                      className="hidden sm:inline-flex"
+                    />
                     <span className="text-sm text-slate-400 hidden sm:block">
                       {currency}{item.current_price.toLocaleString()}
                     </span>

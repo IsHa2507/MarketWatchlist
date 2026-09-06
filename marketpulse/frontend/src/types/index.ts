@@ -31,6 +31,17 @@ export interface Watchlist {
 
 // ── Market Data ───────────────────────────────────────────────────────────────
 
+export type FreshnessStatusType = 'FRESH' | 'STALE' | 'CLOSED' | 'ERROR'
+
+export interface FreshnessInfo {
+  status: FreshnessStatusType
+  fetched_at: string | null
+  age_seconds: number
+  ttl_seconds: number
+  market_state: string | null
+  label: string
+}
+
 export interface StockQuote {
   ticker: string
   company_name: string
@@ -46,7 +57,9 @@ export interface StockQuote {
   sentiment_label: string
   last_updated: string
   data_confidence: string
+  data_source?: string
   demo_mode?: boolean
+  freshness?: FreshnessInfo
 }
 
 export interface HistoryDataPoint {
@@ -110,6 +123,10 @@ export interface AttentionScore {
   since?: string
   is_first_visit?: boolean
   stock_data?: StockQuote
+  // New freshness fields
+  freshness?: FreshnessInfo
+  data_source?: string
+  demo_mode?: boolean
 }
 
 export interface DashboardSummary {
@@ -117,15 +134,24 @@ export interface DashboardSummary {
   needs_attention_count: number
   worth_watching_count: number
   normal_count: number
+  error_count?: number
   days_away?: number
   watchlist_name?: string
   watchlist_id?: number
+}
+
+export interface DashboardError {
+  ticker: string
+  error: string
+  error_type: string
 }
 
 export interface DashboardResponse {
   needs_attention: AttentionScore[]
   worth_watching: AttentionScore[]
   normal: AttentionScore[]
+  errors?: DashboardError[]
+  partial_results?: boolean
   summary: DashboardSummary
   last_checked?: string
   is_first_visit: boolean

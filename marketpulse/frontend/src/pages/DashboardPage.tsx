@@ -115,6 +115,15 @@ export function DashboardPage() {
                 <AwayBanner days={data.summary.days_away} data={data} />
               )}
 
+              {/* Partial results warning */}
+              {data.partial_results && data.errors && data.errors.length > 0 && (
+                <Alert
+                  variant="warning"
+                  title={`${data.errors.length} stock${data.errors.length > 1 ? 's' : ''} could not be updated`}
+                  message={`${data.errors.map(e => e.ticker).join(', ')} — showing other stocks normally. ${data.errors[0]?.error ?? ''}`}
+                />
+              )}
+
               {/* First visit */}
               {data.is_first_visit && (
                 <Alert

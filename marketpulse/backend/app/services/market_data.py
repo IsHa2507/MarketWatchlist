@@ -1,230 +1,172 @@
 """
-MarketDataService — supports Live API mode and Demo mode.
-Demo mode uses seeded PostgreSQL data and is fully functional.
+MarketDataService
+=================
+Orchestrates market-data access for the rest of the application.
+
+Phase 2 additions
+------------------
+- Calls SentimentService to get real news sentiment after provider fetch.
+- Passes sentiment provenance (source, timestamp, article_count) through.
+- Never treats sentiment=0.0 as neutral if news was unavailable.
+- Passes closes[] to change_detection for real RSI-14 calculation.
 """
+import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-import random
-import math
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.market import StockSnapshot, MarketEvent
+from app.models.market import StockSnapshot
+from app.providers import get_provider
+from app.providers.base import FreshnessStatus, compute_freshness
+from app.providers.demo import DemoProvider
+from app.providers.symbol_map import (
+    get_all_tickers,
+    get_company_meta,
+    get_fallback_avg_volume,
+    is_supported,
+)
 
-# ---------------------------------------------------------------------------
-# Company metadata
-# ---------------------------------------------------------------------------
+from app.providers.symbol_map import SYMBOL_REGISTRY as COMPANY_METADATA  # noqa: F401
 
-COMPANY_METADATA: Dict[str, Dict[str, Any]] = {
-    "TCS": {
-        "name": "Tata Consultancy Services",
-        "sector": "Information Technology",
-        "currency": "INR",
-        "base_price": 3842.0,
-        "avg_volume": 1_200_000,
-    },
-    "RELIANCE": {
-        "name": "Reliance Industries",
-        "sector": "Conglomerates",
-        "currency": "INR",
-        "base_price": 2945.0,
-        "avg_volume": 8_500_000,
-    },
-    "INFY": {
-        "name": "Infosys Limited",
-        "sector": "Information Technology",
-        "currency": "INR",
-        "base_price": 1482.0,
-        "avg_volume": 5_200_000,
-    },
-    "HDFCBANK": {
-        "name": "HDFC Bank",
-        "sector": "Banking",
-        "currency": "INR",
-        "base_price": 1623.0,
-        "avg_volume": 7_800_000,
-    },
-    "ICICIBANK": {
-        "name": "ICICI Bank",
-        "sector": "Banking",
-        "currency": "INR",
-        "base_price": 1142.0,
-        "avg_volume": 9_200_000,
-    },
-    "AAPL": {
-        "name": "Apple Inc.",
-        "sector": "Technology",
-        "currency": "USD",
-        "base_price": 189.30,
-        "avg_volume": 55_000_000,
-    },
-    "NVDA": {
-        "name": "NVIDIA Corporation",
-        "sector": "Semiconductors",
-        "currency": "USD",
-        "base_price": 875.40,
-        "avg_volume": 42_000_000,
-    },
-    "TSLA": {
-        "name": "Tesla Inc.",
-        "sector": "Automotive / EV",
-        "currency": "USD",
-        "base_price": 177.80,
-        "avg_volume": 98_000_000,
-    },
-    "MSFT": {
-        "name": "Microsoft Corporation",
-        "sector": "Technology",
-        "currency": "USD",
-        "base_price": 415.20,
-        "avg_volume": 22_000_000,
-    },
-    "AMZN": {
-        "name": "Amazon.com Inc.",
-        "sector": "E-Commerce / Cloud",
-        "currency": "USD",
-        "base_price": 182.50,
-        "avg_volume": 38_000_000,
-    },
-}
-
-# Demo scenarios — deterministic for reproducibility
-DEMO_SCENARIOS: Dict[str, Dict[str, Any]] = {
-    "TCS": {
-        "price_change_pct": -3.8,
-        "volume_multiplier": 2.1,
-        "sentiment_score": -0.42,
-        "sentiment_label": "Negative",
-        "volatility": 0.038,
-        "attention_score": 79,
-    },
-    "NVDA": {
-        "price_change_pct": 6.2,
-        "volume_multiplier": 2.8,
-        "sentiment_score": 0.71,
-        "sentiment_label": "Positive",
-        "volatility": 0.065,
-        "attention_score": 84,
-    },
-    "RELIANCE": {
-        "price_change_pct": 2.4,
-        "volume_multiplier": 1.8,
-        "sentiment_score": 0.35,
-        "sentiment_label": "Positive",
-        "volatility": 0.024,
-        "attention_score": 62,
-    },
-    "ICICIBANK": {
-        "price_change_pct": 1.8,
-        "volume_multiplier": 1.4,
-        "sentiment_score": 0.18,
-        "sentiment_label": "Neutral",
-        "volatility": 0.018,
-        "attention_score": 45,
-    },
-    "HDFCBANK": {
-        "price_change_pct": 0.4,
-        "volume_multiplier": 0.9,
-        "sentiment_score": 0.05,
-        "sentiment_label": "Neutral",
-        "volatility": 0.008,
-        "attention_score": 12,
-    },
-    "INFY": {
-        "price_change_pct": 0.3,
-        "volume_multiplier": 1.0,
-        "sentiment_score": 0.02,
-        "sentiment_label": "Neutral",
-        "volatility": 0.007,
-        "attention_score": 15,
-    },
-    "AAPL": {
-        "price_change_pct": -0.8,
-        "volume_multiplier": 1.1,
-        "sentiment_score": -0.08,
-        "sentiment_label": "Neutral",
-        "volatility": 0.010,
-        "attention_score": 18,
-    },
-    "TSLA": {
-        "price_change_pct": -1.2,
-        "volume_multiplier": 1.3,
-        "sentiment_score": -0.12,
-        "sentiment_label": "Neutral",
-        "volatility": 0.018,
-        "attention_score": 28,
-    },
-    "MSFT": {
-        "price_change_pct": 0.6,
-        "volume_multiplier": 0.95,
-        "sentiment_score": 0.10,
-        "sentiment_label": "Neutral",
-        "volatility": 0.009,
-        "attention_score": 14,
-    },
-    "AMZN": {
-        "price_change_pct": 1.1,
-        "volume_multiplier": 1.2,
-        "sentiment_score": 0.15,
-        "sentiment_label": "Neutral",
-        "volatility": 0.013,
-        "attention_score": 22,
-    },
-}
-
-
-def _compute_current_price(ticker: str) -> float:
-    meta = COMPANY_METADATA.get(ticker, {})
-    scenario = DEMO_SCENARIOS.get(ticker, {})
-    base = meta.get("base_price", 100.0)
-    pct = scenario.get("price_change_pct", 0.0)
-    return round(base * (1 + pct / 100), 2)
-
-
-def _compute_checkpoint_price(ticker: str) -> float:
-    """The price the user would have seen on their previous visit."""
-    meta = COMPANY_METADATA.get(ticker, {})
-    return round(meta.get("base_price", 100.0), 2)
+logger = logging.getLogger(__name__)
 
 
 class MarketDataService:
     """
-    Abstraction for market data.
-    Supports Demo mode (fully functional without paid APIs) and
-    Live mode when MARKET_API_KEY is configured.
+    Facade over the provider layer with database caching.
+
+    Instantiated per-request (FastAPI dependency injection passes a db session).
+    Provider selection is driven by settings.MARKET_DATA_PROVIDER.
     """
 
     def __init__(self, db: Session):
         self.db = db
-        self.demo_mode = settings.DEMO_MODE or not settings.MARKET_API_KEY
+        self._ttl = settings.MARKET_CACHE_TTL_SECONDS  # default 300 s
+        self._provider = get_provider(settings.MARKET_DATA_PROVIDER)
+        self._fallback = DemoProvider()
+        self.demo_mode = settings.MARKET_DATA_PROVIDER.lower() != "yahoo"
+        # SentimentService is created lazily to avoid circular imports
+        self._sentiment_svc = None
+
+    def _get_sentiment_service(self):
+        """Lazy init to avoid import cycles at module load."""
+        if self._sentiment_svc is None:
+            from app.services.sentiment_service import SentimentService
+            self._sentiment_svc = SentimentService(self.db)
+        return self._sentiment_svc
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def get_stock(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Primary entry point for a single stock quote.
+
+        Flow:
+          1. Check StockSnapshot cache (< TTL seconds old).
+          2. If cache hit → return with freshness recalculated.
+          3. Else call primary provider.
+          4. Inject real sentiment (only in yahoo mode; demo has preset scores).
+          5. If provider fails → call demo fallback.
+          6. Persist result to cache (not on errors).
+          7. Return result.
+        """
         ticker = ticker.upper()
-        if ticker not in COMPANY_METADATA:
+        if not is_supported(ticker):
             return None
-        return self._get_demo_stock(ticker)
+
+        # 1. Cache check
+        cached = self._get_cached_snapshot(ticker)
+        if cached is not None:
+            return cached
+
+        # 2. Live fetch
+        data = self._fetch_from_provider(ticker)
+        if data is None:
+            return None
+
+        # 3. Inject sentiment for yahoo/real mode (not for demo — demo has preset scores)
+        if not data.get("demo_mode", False):
+            data = self._inject_sentiment(ticker, data)
+
+        # 4. Persist to cache
+        self._save_snapshot(ticker, data)
+        return data
+
+    def _inject_sentiment(self, ticker: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Call SentimentService and merge sentiment fields into the stock data dict.
+        Never raises — on any failure, marks sentiment as unavailable.
+        """
+        try:
+            svc = self._get_sentiment_service()
+            result = svc.get_sentiment(ticker)
+            data["sentiment_score"] = result.get("score")       # None if unavailable
+            data["sentiment_label"] = result.get("label", "Unavailable")
+            data["sentiment_unavailable"] = result.get("unavailable", True)
+            data["sentiment_source"] = result.get("source", "Unavailable")
+            data["sentiment_timestamp"] = result.get("timestamp")
+            data["sentiment_article_count"] = result.get("article_count", 0)
+            data["sentiment_confidence"] = result.get("confidence", 0.0)
+        except Exception as exc:
+            logger.warning("Failed to inject sentiment for '%s': %s", ticker, exc)
+            data["sentiment_score"] = None
+            data["sentiment_label"] = "Unavailable"
+            data["sentiment_unavailable"] = True
+            data["sentiment_source"] = "Unavailable"
+            data["sentiment_timestamp"] = None
+            data["sentiment_article_count"] = 0
+            data["sentiment_confidence"] = 0.0
+        return data
 
     def get_quote(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Alias for get_stock — kept for backward compat."""
         return self.get_stock(ticker)
 
     def get_history(self, ticker: str, days: int = 30) -> List[Dict[str, Any]]:
+        """
+        Fetch OHLCV history.
+        Tries primary provider first; falls back to demo if empty/error.
+        History is NOT cached in the database (it's large and stale quickly).
+        """
         ticker = ticker.upper()
-        if ticker not in COMPANY_METADATA:
+        if not is_supported(ticker):
             return []
-        return self._get_demo_history(ticker, days)
+
+        try:
+            history = self._provider.get_history(ticker, days)
+            if history:
+                return history
+        except Exception as exc:
+            logger.warning("History fetch failed for '%s' via primary provider: %s", ticker, exc)
+
+        # Fallback to demo
+        return self._fallback.get_history(ticker, days)
 
     def get_volume(self, ticker: str) -> Dict[str, Any]:
+        """
+        Return volume data for a ticker.
+        Derives from get_stock to avoid a second fetch.
+        """
         ticker = ticker.upper()
-        meta = COMPANY_METADATA.get(ticker, {})
-        scenario = DEMO_SCENARIOS.get(ticker, {})
-        avg_vol = meta.get("avg_volume", 1_000_000)
-        multiplier = scenario.get("volume_multiplier", 1.0)
-        current_vol = avg_vol * multiplier
+        stock = self.get_stock(ticker)
+        if not stock:
+            meta = get_company_meta(ticker) or {}
+            avg_vol = meta.get("avg_volume", 1_000_000)
+            return {
+                "ticker": ticker,
+                "current_volume": 0.0,
+                "average_volume": float(avg_vol),
+                "multiplier": 0.0,
+            }
+
+        current_vol = stock.get("volume", 0.0)
+        avg_vol = stock.get("average_volume", float(get_fallback_avg_volume(ticker)))
+        multiplier = (current_vol / avg_vol) if avg_vol > 0 else 1.0
+
         return {
             "ticker": ticker,
             "current_volume": current_vol,
@@ -233,103 +175,201 @@ class MarketDataService:
         }
 
     def search_stocks(self, query: str) -> List[Dict[str, Any]]:
-        query = query.upper().strip()
-        results = []
-        for ticker, meta in COMPANY_METADATA.items():
-            if (
-                query in ticker
-                or query in meta["name"].upper()
-            ):
-                scenario = DEMO_SCENARIOS.get(ticker, {})
-                results.append(
-                    {
-                        "ticker": ticker,
-                        "company_name": meta["name"],
-                        "sector": meta["sector"],
-                        "price": _compute_current_price(ticker),
-                        "price_change_percent": scenario.get("price_change_pct", 0.0),
-                        "currency": meta.get("currency", "USD"),
-                    }
-                )
+        """
+        Search for stocks matching query (ticker fragment or company name).
+        Uses provider search (which hits the local registry, not Yahoo Finance).
+        Enriches results with live prices if primary provider is yahoo and
+        the match set is small (≤ 5) to avoid excessive API calls.
+        """
+        results = self._provider.search_stocks(query)
+
+        # For Yahoo provider, enrich with real prices if result set is small
+        if (
+            settings.MARKET_DATA_PROVIDER.lower() == "yahoo"
+            and 0 < len(results) <= 5
+        ):
+            enriched = []
+            for r in results:
+                quote = self.get_stock(r["ticker"])  # uses cache
+                if quote:
+                    r["price"] = quote.get("price", 0.0)
+                    r["price_change_percent"] = quote.get("price_change_percent", 0.0)
+                enriched.append(r)
+            return enriched
+
         return results
 
     def get_all_tickers(self) -> List[str]:
-        return list(COMPANY_METADATA.keys())
+        """Return all tickers supported by the current provider."""
+        return get_all_tickers()
 
     # ------------------------------------------------------------------
-    # Demo implementation
+    # Cache layer (StockSnapshot table)
     # ------------------------------------------------------------------
 
-    def _get_demo_stock(self, ticker: str) -> Dict[str, Any]:
-        meta = COMPANY_METADATA[ticker]
-        scenario = DEMO_SCENARIOS.get(ticker, {})
-        base_price = meta["base_price"]
-        price_change_pct = scenario.get("price_change_pct", 0.0)
-        current_price = round(base_price * (1 + price_change_pct / 100), 2)
-        price_change = round(current_price - base_price, 2)
-        avg_vol = meta["avg_volume"]
-        multiplier = scenario.get("volume_multiplier", 1.0)
+    def _get_cached_snapshot(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Look up the most recent StockSnapshot for ticker.
+        Return a hydrated dict if it is younger than TTL; None otherwise.
+        Never return a cached error row.
+        """
+        cutoff = datetime.utcnow() - timedelta(seconds=self._ttl)
+        row = (
+            self.db.query(StockSnapshot)
+            .filter(
+                StockSnapshot.ticker == ticker,
+                StockSnapshot.timestamp >= cutoff,
+            )
+            .order_by(StockSnapshot.timestamp.desc())
+            .first()
+        )
+        if row is None:
+            return None
+
+        # Reconstruct freshness from cached row
+        fetched_at = row.fetched_at or row.timestamp
+        market_state = None  # not stored in snapshot; will show as STALE if old
+
+        freshness = compute_freshness(
+            fetched_at=fetched_at,
+            ttl_seconds=self._ttl,
+            market_state=market_state,
+        )
+
+        # If freshness resolves to ERROR (shouldn't happen here), skip cache
+        if freshness["status"] == FreshnessStatus.ERROR.value:
+            return None
+
+        meta = get_company_meta(ticker) or {}
+        source = row.data_source or "Demo"
+
+        # Determine if the cached sentiment was actually unavailable
+        sentiment_source = getattr(row, "sentiment_source", "Unavailable") or "Unavailable"
+        sentiment_unavailable = sentiment_source == "Unavailable"
+        cached_sentiment_score = row.sentiment_score if not sentiment_unavailable else None
 
         return {
             "ticker": ticker,
-            "company_name": meta["name"],
-            "sector": meta["sector"],
+            "yahoo_symbol": meta.get("yahoo_symbol", ticker),
+            "company_name": meta.get("name", ticker),
+            "sector": meta.get("sector"),
             "currency": meta.get("currency", "USD"),
-            "price": current_price,
-            "price_change": price_change,
-            "price_change_percent": price_change_pct,
-            "volume": avg_vol * multiplier,
-            "average_volume": avg_vol,
-            "volatility": scenario.get("volatility", 0.015),
-            "sentiment_score": scenario.get("sentiment_score", 0.0),
-            "sentiment_label": scenario.get("sentiment_label", "Neutral"),
-            "last_updated": datetime.utcnow(),
-            "data_confidence": "HIGH",
-            "demo_mode": True,
+            "price": row.price,
+            "previous_close": row.price,
+            "price_change": 0.0,
+            "price_change_percent": row.price_change_percent,
+            "volume": row.volume,
+            "average_volume": row.average_volume,
+            "volatility": row.volatility,
+            "sentiment_score": cached_sentiment_score,
+            "sentiment_label": self._sentiment_label(row.sentiment_score) if not sentiment_unavailable else "Unavailable",
+            "sentiment_unavailable": sentiment_unavailable,
+            "sentiment_source": sentiment_source,
+            "sentiment_timestamp": getattr(row, "sentiment_timestamp", None),
+            "sentiment_article_count": getattr(row, "sentiment_article_count", 0) or 0,
+            "sentiment_confidence": 0.0,
+            "market_state": None,
+            "data_source": f"Cache ({source})",
+            "data_timestamp": row.data_timestamp or row.timestamp,
+            "fetched_at": fetched_at,
+            "freshness": freshness,
+            "last_updated": fetched_at,
+            "data_confidence": "MEDIUM" if source == "Yahoo Finance" else "HIGH",
+            "demo_mode": source == "Demo",
         }
 
-    def _get_demo_history(self, ticker: str, days: int = 30) -> List[Dict[str, Any]]:
-        """Generate deterministic price history using a seeded walk."""
-        meta = COMPANY_METADATA[ticker]
-        scenario = DEMO_SCENARIOS.get(ticker, {})
-        base_price = meta["base_price"]
-        price_change_pct = scenario.get("price_change_pct", 0.0)
-        current_price = base_price * (1 + price_change_pct / 100)
-        avg_vol = meta["avg_volume"]
-        vol_multi = scenario.get("volume_multiplier", 1.0)
+    def _save_snapshot(self, ticker: str, data: Dict[str, Any]) -> None:
+        """Upsert a StockSnapshot row. Does not save error/None results."""
+        try:
+            now = datetime.utcnow()
+            freshness = data.get("freshness", {})
+            freshness_status = freshness.get("status", FreshnessStatus.FRESH)
+            if hasattr(freshness_status, "value"):
+                freshness_status = freshness_status.value
 
-        # Seed random for reproducibility per ticker
-        rng = random.Random(hash(ticker) % (2**31))
+            # sentiment_score may be None (unavailable); store as 0.0 in DB
+            # but preserve the provenance so we know it was actually unavailable
+            sentiment_score_db = data.get("sentiment_score")
+            if sentiment_score_db is None:
+                sentiment_score_db = 0.0
 
-        # Build history from current price backwards
-        prices = [current_price]
-        # Last N-1 days before current
-        daily_drift = price_change_pct / 100 / days
-        for i in range(days - 1):
-            noise = rng.gauss(0, 0.008)  # daily noise ~0.8%
-            prev = prices[-1] / (1 + daily_drift + noise)
-            prices.append(round(prev, 2))
-
-        prices.reverse()
-
-        now = datetime.utcnow()
-        history = []
-        for i, price in enumerate(prices):
-            date = now - timedelta(days=days - i)
-            # Volume gradually rises toward current
-            progress = i / max(days - 1, 1)
-            vol_factor = 1 + (vol_multi - 1) * progress
-            volume = avg_vol * vol_factor * (0.8 + rng.random() * 0.4)
-            history.append(
-                {
-                    "date": date.strftime("%Y-%m-%d"),
-                    "timestamp": date.isoformat(),
-                    "open": round(price * (1 - rng.uniform(0, 0.005)), 2),
-                    "high": round(price * (1 + rng.uniform(0, 0.01)), 2),
-                    "low": round(price * (1 - rng.uniform(0, 0.01)), 2),
-                    "close": price,
-                    "volume": int(volume),
-                    "is_checkpoint": i == 0,  # First point is "last check"
-                }
+            row = StockSnapshot(
+                ticker=ticker,
+                price=data.get("price", 0.0),
+                price_change_percent=data.get("price_change_percent", 0.0),
+                volume=data.get("volume", 0.0),
+                average_volume=data.get("average_volume", float(get_fallback_avg_volume(ticker))),
+                volatility=data.get("volatility", 0.015),
+                sentiment_score=sentiment_score_db,
+                timestamp=now,
+                data_source=data.get("data_source", "Demo"),
+                data_timestamp=data.get("data_timestamp"),
+                fetched_at=data.get("fetched_at", now),
+                freshness_status=freshness_status,
+                is_stale=False,
+                # Phase 2: sentiment provenance
+                sentiment_source=data.get("sentiment_source", "Unavailable"),
+                sentiment_timestamp=_parse_dt(data.get("sentiment_timestamp")),
+                sentiment_article_count=data.get("sentiment_article_count", 0),
             )
-        return history
+            self.db.add(row)
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            logger.warning("Failed to save snapshot for '%s': %s", ticker, exc)
+
+    # ------------------------------------------------------------------
+    # Provider fetch with fallback
+    # ------------------------------------------------------------------
+
+    def _fetch_from_provider(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Try primary provider. On failure, try demo fallback.
+        Returns None only if both fail.
+        """
+        # Primary
+        try:
+            data = self._provider.get_quote(ticker)
+            if data is not None:
+                return data
+            logger.warning("Primary provider returned None for '%s'", ticker)
+        except Exception as exc:
+            logger.error("Primary provider error for '%s': %s", ticker, exc)
+
+        # Demo fallback (always works)
+        logger.info("Falling back to DemoProvider for '%s'", ticker)
+        try:
+            fallback_data = self._fallback.get_quote(ticker)
+            if fallback_data:
+                # Mark clearly as demo fallback
+                fallback_data["data_source"] = "Demo (fallback)"
+                fallback_data["demo_mode"] = True
+                return fallback_data
+        except Exception as exc:
+            logger.error("DemoProvider fallback also failed for '%s': %s", ticker, exc)
+
+        return None
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _sentiment_label(score: float) -> str:
+        if score > 0.3:
+            return "Positive"
+        if score < -0.3:
+            return "Negative"
+        return "Neutral"
+
+
+def _parse_dt(value) -> Optional[datetime]:
+    """Safely convert a string or datetime to datetime; return None on failure."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", ""))
+    except Exception:
+        return None

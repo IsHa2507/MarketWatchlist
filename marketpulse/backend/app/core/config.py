@@ -10,11 +10,21 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = "development"
     DEMO_MODE: bool = True
+    MARKET_DATA_PROVIDER: str = "demo"  # "yahoo" or "demo"
+    MARKET_CACHE_TTL_SECONDS: int = 300  # 5 minutes
 
     MARKET_API_KEY: str = ""
     NEWS_API_KEY: str = ""
     LLM_API_KEY: str = ""
     LLM_PROVIDER: str = "openai"
+
+    # Phase 2: news + sentiment
+    NEWS_ENABLED: bool = True
+    NEWS_CACHE_TTL_SECONDS: int = 3600   # 1 hour
+    NEWS_MAX_ARTICLES: int = 10
+    # "vader" (lexicon/rule-based) | "keyword" (zero-dependency fallback)
+    # Future: "finbert" for Phase 3
+    SENTIMENT_MODEL: str = "vader"
 
     class Config:
         env_file = ".env"

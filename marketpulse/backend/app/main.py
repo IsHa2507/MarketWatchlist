@@ -31,8 +31,9 @@ def startup():
     import os
     if os.environ.get("TESTING") == "1":
         return
-    from app.db.database import Base, engine
+    from app.db.database import Base, engine, run_migrations
     Base.metadata.create_all(bind=engine)
+    run_migrations()
 
 
 @app.get("/")

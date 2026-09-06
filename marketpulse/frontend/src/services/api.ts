@@ -21,10 +21,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err: AxiosError) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('mp_token')
-      window.location.href = '/login'
-    }
+    // For demo mode, don't auto-redirect on 401
+    // if (err.response?.status === 401) {
+    //   localStorage.removeItem('mp_token')
+    //   window.location.href = '/login'
+    // }
     return Promise.reject(err)
   }
 )

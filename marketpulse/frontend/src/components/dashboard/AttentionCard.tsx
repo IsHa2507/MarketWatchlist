@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { TrendingUp, TrendingDown, ArrowRight, Volume2 } from 'lucide-react'
 import type { AttentionScore } from '../../types'
 import { ClassificationBadge, ScoreBadge } from '../ui/Badge'
+import { FreshnessBadge } from '../ui/FreshnessBadge'
 import { formatPercent, formatTimeAgo } from '../../utils/format'
 import { clsx } from 'clsx'
 
@@ -123,8 +124,14 @@ export function AttentionCard({ item, variant = 'full' }: AttentionCardProps) {
       )}
 
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-border">
-        <span className="text-xs text-slate-500">Click to see full analysis</span>
-        <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-accent transition-colors" />
+        <FreshnessBadge
+          freshness={item.freshness ?? item.stock_data?.freshness}
+          demoMode={item.demo_mode ?? item.stock_data?.demo_mode}
+        />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">View analysis</span>
+          <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-accent transition-colors" />
+        </div>
       </div>
     </button>
   )

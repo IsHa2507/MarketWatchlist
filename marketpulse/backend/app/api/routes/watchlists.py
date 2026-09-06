@@ -13,7 +13,7 @@ from app.schemas.watchlist import (
     AddStockRequest,
 )
 from app.api.deps import get_current_user
-from app.services.market_data import COMPANY_METADATA
+from app.providers.symbol_map import is_supported
 
 router = APIRouter(prefix="/watchlists", tags=["watchlists"])
 
@@ -107,8 +107,8 @@ def add_stock(
 
     ticker = body.ticker.upper().strip()
 
-    # Validate ticker exists
-    if ticker not in COMPANY_METADATA:
+    # Validate ticker exists in supported registry
+    if not is_supported(ticker):
         raise HTTPException(
             status_code=400,
             detail=f"Ticker '{ticker}' is not supported. Use the search endpoint to find valid tickers.",

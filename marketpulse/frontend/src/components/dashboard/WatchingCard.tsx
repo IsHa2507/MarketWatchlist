@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
 import type { AttentionScore } from '../../types'
 import { ScoreBadge } from '../ui/Badge'
+import { FreshnessBadge } from '../ui/FreshnessBadge'
 import { formatPercent, formatTimeAgo } from '../../utils/format'
 import { clsx } from 'clsx'
 
@@ -55,6 +56,10 @@ export function WatchingCard({ item }: { item: AttentionScore }) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <FreshnessBadge
+            freshness={item.freshness ?? item.stock_data?.freshness}
+            demoMode={item.demo_mode ?? item.stock_data?.demo_mode}
+          />
           <ScoreBadge score={item.attention_score} size="sm" />
           <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-yellow-400 transition-colors" />
         </div>

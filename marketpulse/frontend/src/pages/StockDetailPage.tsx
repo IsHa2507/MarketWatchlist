@@ -17,6 +17,7 @@ import { EventCard } from '../components/stock/EventCard'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Alert } from '../components/ui/Alert'
 import { SentimentBadge } from '../components/ui/Badge'
+import { FreshnessBadge } from '../components/ui/FreshnessBadge'
 import type { AttentionScore, HistoryDataPoint, MarketEvent, StockQuote } from '../types'
 import { formatPercent, formatTimeAgo, classificationDot } from '../utils/format'
 import { clsx } from 'clsx'
@@ -161,19 +162,23 @@ export function StockDetailPage() {
                 </div>
               </div>
 
-              {/* Data confidence */}
+              {/* Data confidence + freshness */}
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-surface-border">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Database className="w-3.5 h-3.5" />
-                  Data Confidence:
-                  <span className={clsx(
-                    'font-semibold',
-                    quote.data_confidence === 'HIGH' ? 'text-green-400' : 'text-yellow-400'
-                  )}>
-                    {quote.data_confidence}
-                  </span>
-                  {quote.demo_mode && (
-                    <span className="ml-1 text-slate-600">(demo mode)</span>
+                <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <Database className="w-3.5 h-3.5" />
+                    <span>
+                      {quote.data_source ?? (quote.demo_mode ? 'Demo' : 'Market Data')}
+                    </span>
+                  </div>
+                  <FreshnessBadge
+                    freshness={quote.freshness}
+                    demoMode={quote.demo_mode}
+                  />
+                  {!quote.demo_mode && (
+                    <span className="text-slate-600 italic">
+                      Market data may be delayed depending on source.
+                    </span>
                   )}
                 </div>
                 <button

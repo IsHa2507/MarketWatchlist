@@ -9,7 +9,13 @@ import os
 from datetime import datetime, timedelta
 import random
 
+# Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+
+# Load .env from backend directory
+from dotenv import load_dotenv
+backend_dir = os.path.join(os.path.dirname(__file__), '..', 'backend')
+load_dotenv(os.path.join(backend_dir, '.env'))
 
 from app.db.database import SessionLocal, Base, engine
 from app.models.user import User
