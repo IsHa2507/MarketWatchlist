@@ -116,6 +116,31 @@ symbol_map.py              — single source of truth for ticker ↔ Yahoo symbo
 
 ---
 
+---
+
+## 🚀 Quick Start for Reviewers
+
+**Want to test the project immediately?** See **[INSTRUCTIONS_TO_RUN.md](./INSTRUCTIONS_TO_RUN.md)** for a streamlined setup guide.
+
+**TL;DR:**
+```bash
+# Clone and setup
+git clone https://github.com/IsHa2507/MarketWatchlist.git
+cd MarketWatchlist/marketpulse
+
+# Backend (Terminal 1)
+cd backend && python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt && cp ../.env.example .env
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Frontend (Terminal 2)
+cd frontend && npm install && npm run dev
+
+# Open: http://localhost:5173
+```
+
+---
+
 ## Local setup
 
 ### Prerequisites
