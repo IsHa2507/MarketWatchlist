@@ -1,26 +1,31 @@
-# MarketPulse
+# MarketPulse AI ⭐
 
 > **Watch less. Understand more.**
 
-MarketPulse is a smart market watchlist that tells you **what changed since you last checked — and whether it matters.**
+[![GitHub](https://img.shields.io/badge/GitHub-IsHa2507%2FMarketWatchlist-blue?logo=github)](https://github.com/IsHa2507/MarketWatchlist)
+[![Live Demo](https://img.shields.io/badge/Demo-Live-success?logo=vercel)](https://github.com/IsHa2507/MarketWatchlist)
+
+MarketPulse AI is a smart market watchlist that tells you **what changed since you last checked — and whether it matters.**
 
 Traditional watchlists show you the current price.  
-MarketPulse compares the market's current state against the last time you visited, scores each change by significance, and explains it in plain language.
+MarketPulse AI compares the market's current state against the last time you visited, scores each change by significance, and explains it in plain language.
 
 ---
 
 ## The core idea
 
+MarketPulse AI uses intelligent change detection and AI-powered explanations to surface what matters:
+
 ```
 User visits dashboard
         ↓
-MarketPulse reads the user's last checkpoint
+MarketPulse AI reads the user's last checkpoint
         ↓
 Fetches current market data
         ↓
 Calculates what changed (price, volume, volatility, sentiment)
         ↓
-Scores each stock 0–100 (Attention Score)
+Scores each stock 0–100 (AI Attention Score)
         ↓
 Ranks and explains the changes
         ↓
@@ -33,10 +38,10 @@ The checkpoint is **always read before it is updated**. The comparison is always
 
 ## Features
 
-- **Since You Last Checked** — hero feature: time-aware change detection
+- **AI-Powered Analysis** — intelligent change detection since your last visit
 - **Attention Score** (0–100) — explainable weighted score across 5 signals
 - **Classification** — CRITICAL / IMPORTANT / WORTH WATCHING / NORMAL
-- **Why It Matters** — plain-language explanation of each change
+- **Why It Matters** — plain-language AI-generated explanations
 - **Freshness indicators** — 🟢 Live · 🟡 Stale · ⚪ Market closed · 🔴 Error
 - **Real market data** via yfinance (Indian NSE + US stocks)
 - **Demo mode** — works fully offline with no API keys
@@ -122,7 +127,7 @@ symbol_map.py              — single source of truth for ticker ↔ Yahoo symbo
 ### 1. Clone
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/IsHa2507/MarketWatchlist.git
 cd MarketWatchlist/marketpulse
 ```
 
@@ -476,11 +481,31 @@ If the checkpoint were updated first, the "since you last checked" comparison wo
 
 ## Important disclaimer
 
-MarketPulse is an informational tool for educational and personal use.
+MarketPulse AI is an informational tool for educational and personal use.
 
 It does **not** provide financial advice. It does **not** recommend buying or selling any security. Market data may be delayed and is provided as-is without warranty.
 
 Always consult a qualified financial advisor before making investment decisions.
+
+---
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request on [GitHub](https://github.com/IsHa2507/MarketWatchlist).
+
+---
+
+## License
+
+MIT License - see LICENSE file for details.
+
+---
+
+## Links
+
+- **GitHub Repository**: https://github.com/IsHa2507/MarketWatchlist
+- **Live Demo**: Coming soon on Vercel
+- **Issues & Feature Requests**: https://github.com/IsHa2507/MarketWatchlist/issues
 
 ---
 
