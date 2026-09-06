@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   RefreshCw, Clock, AlertTriangle, Activity, TrendingUp,
-  Search, Plus, Calendar,
+  Plus, Calendar,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useDashboard } from '../hooks/useDashboard'
@@ -39,15 +39,11 @@ export function DashboardPage() {
 
   const { data, loading, error, refetch, lastFetch } = useDashboard(activeWatchlistId)
 
-  // Redirect to onboarding if no watchlists
-  useEffect(() => {
-    if (!wlLoading && watchlists.length === 0) {
-      navigate('/onboarding')
-    }
-  }, [wlLoading, watchlists, navigate])
-
+  // Greeting: use name from logged-in user, or a generic fallback
   const greeting = getGreeting()
-  const firstName = user?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'
+  const firstName = user?.full_name?.split(' ')[0]
+    || user?.email?.split('@')[0]
+    || 'there'
 
   return (
     <AppLayout>

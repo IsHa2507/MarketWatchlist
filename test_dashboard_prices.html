@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Price Test</title>
+</head>
+<body>
+  <h1>Dashboard Price Test</h1>
+  <div id="output"></div>
+  
+  <script>
+    fetch('http://localhost:8000/dashboard')
+      .then(r => r.json())
+      .then(data => {
+        const output = document.getElementById('output')
+        output.innerHTML = '<h2>Prices from Dashboard API:</h2>'
+        
+        const allItems = [
+          ...data.needs_attention || [],
+          ...data.worth_watching || [],
+          ...data.normal || []
+        ]
+        
+        allItems.forEach(item => {
+          const currency = item.stock_data?.currency === 'INR' ? '₹' : '$'
+          const price = item.current_price.toLocaleString()
+          output.innerHTML += `<p><strong>${item.ticker}:</strong> ${currency}${price}</p>`
+        })
+        
+        if (allItems.length === 0) {
+          output.innerHTML += '<p>No items in dashboard</p>'
+        }
+      })
+      .catch(err => {
+        document.getElementById('output').innerHTML = '<p style="color: red;">Error: ' + err.message + '</p>'
+      })
+  </script>
+</body>
+</html>

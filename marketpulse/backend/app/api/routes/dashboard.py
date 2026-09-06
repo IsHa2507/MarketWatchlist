@@ -5,7 +5,7 @@ from typing import Optional
 from app.db.database import get_db
 from app.models.user import User
 from app.services.dashboard import DashboardService
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("")
 def get_dashboard(
     watchlist_id: Optional[int] = Query(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     svc = DashboardService(db)
@@ -23,7 +23,7 @@ def get_dashboard(
 @router.get("/changes")
 def get_changes(
     watchlist_id: Optional[int] = Query(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     """Returns only the changed stocks (attention + watching)."""
@@ -39,7 +39,7 @@ def get_changes(
 @router.get("/attention")
 def get_attention(
     watchlist_id: Optional[int] = Query(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     """Returns only stocks needing attention, sorted by score."""

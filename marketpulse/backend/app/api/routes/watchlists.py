@@ -12,7 +12,7 @@ from app.schemas.watchlist import (
     WatchlistResponse,
     AddStockRequest,
 )
-from app.api.deps import get_current_user
+from app.api.deps import get_optional_user        # all routes use optional auth
 from app.providers.symbol_map import is_supported
 
 router = APIRouter(prefix="/watchlists", tags=["watchlists"])
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/watchlists", tags=["watchlists"])
 
 @router.get("", response_model=List[WatchlistResponse])
 def list_watchlists(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     return (
@@ -34,7 +34,7 @@ def list_watchlists(
 @router.post("", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED)
 def create_watchlist(
     body: WatchlistCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     wl = Watchlist(user_id=current_user.id, name=body.name)
@@ -47,11 +47,12 @@ def create_watchlist(
 @router.get("/{watchlist_id}", response_model=WatchlistResponse)
 def get_watchlist(
     watchlist_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     wl = db.query(Watchlist).filter(
-        Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
+        Watchlist.id == watchlist_id,
+        Watchlist.user_id == current_user.id,
     ).first()
     if not wl:
         raise HTTPException(status_code=404, detail="Watchlist not found")
@@ -62,11 +63,12 @@ def get_watchlist(
 def update_watchlist(
     watchlist_id: int,
     body: WatchlistUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     wl = db.query(Watchlist).filter(
-        Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
+        Watchlist.id == watchlist_id,
+        Watchlist.user_id == current_user.id,
     ).first()
     if not wl:
         raise HTTPException(status_code=404, detail="Watchlist not found")
@@ -80,11 +82,12 @@ def update_watchlist(
 @router.delete("/{watchlist_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_watchlist(
     watchlist_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     wl = db.query(Watchlist).filter(
-        Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
+        Watchlist.id == watchlist_id,
+        Watchlist.user_id == current_user.id,
     ).first()
     if not wl:
         raise HTTPException(status_code=404, detail="Watchlist not found")
@@ -92,29 +95,32 @@ def delete_watchlist(
     db.commit()
 
 
-@router.post("/{watchlist_id}/stocks", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{watchlist_id}/stocks",
+    response_model=WatchlistResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def add_stock(
     watchlist_id: int,
     body: AddStockRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     wl = db.query(Watchlist).filter(
-        Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
+        Watchlist.id == watchlist_id,
+        Watchlist.user_id == current_user.id,
     ).first()
     if not wl:
         raise HTTPException(status_code=404, detail="Watchlist not found")
 
     ticker = body.ticker.upper().strip()
 
-    # Validate ticker exists in supported registry
     if not is_supported(ticker):
         raise HTTPException(
             status_code=400,
             detail=f"Ticker '{ticker}' is not supported. Use the search endpoint to find valid tickers.",
         )
 
-    # Check duplicate
     existing = db.query(WatchlistStock).filter(
         WatchlistStock.watchlist_id == watchlist_id,
         WatchlistStock.ticker == ticker,
@@ -134,11 +140,12 @@ def add_stock(
 def remove_stock(
     watchlist_id: int,
     ticker: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     wl = db.query(Watchlist).filter(
-        Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
+        Watchlist.id == watchlist_id,
+        Watchlist.user_id == current_user.id,
     ).first()
     if not wl:
         raise HTTPException(status_code=404, detail="Watchlist not found")

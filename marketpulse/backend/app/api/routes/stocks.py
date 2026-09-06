@@ -6,7 +6,7 @@ from app.db.database import get_db
 from app.models.user import User
 from app.models.market import MarketEvent
 from app.services.market_data import MarketDataService
-from app.api.deps import get_current_user
+from app.api.deps import get_optional_user
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/stocks", tags=["stocks"])
 @router.get("/search")
 def search_stocks(
     q: str = Query(..., min_length=1),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     svc = MarketDataService(db)
@@ -25,7 +25,7 @@ def search_stocks(
 @router.get("/{ticker}")
 def get_stock(
     ticker: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     svc = MarketDataService(db)
@@ -39,7 +39,7 @@ def get_stock(
 def get_stock_history(
     ticker: str,
     days: int = Query(default=30, ge=7, le=365),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     svc = MarketDataService(db)
@@ -59,7 +59,7 @@ def get_stock_history(
 def get_stock_events(
     ticker: str,
     limit: int = Query(default=10, ge=1, le=50),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
     events = (
